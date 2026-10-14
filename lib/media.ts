@@ -44,6 +44,8 @@ export async function ingest(file: File): Promise<Asset> {
           objectUrl,
           file,
           thumbnail,
+          width: v.videoWidth,
+          height: v.videoHeight,
         };
         finish();
         resolve(asset);

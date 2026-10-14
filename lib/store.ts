@@ -6,8 +6,9 @@ import {
   Operation,
   duration,
   validateClips,
+  describe,
 } from "./timeline";
-type Snapshot = { clips: Clip[]; summary: string };
+type Snapshot = { clips: Clip[]; summary: string; ratio: string };
 type State = {
   name: string;
   assets: Asset[];
@@ -19,8 +20,9 @@ type State = {
   past: Snapshot[];
   future: Snapshot[];
   status: string;
+  ratio: string;
   set: (s: Partial<State>) => void;
-  commit: (clips: Clip[], summary: string) => void;
+  commit: (clips: Clip[], summary: string, ratio?: string) => void;
   edit: (ops: Operation[], revision?: number) => void;
   undo: () => void;
   redo: () => void;
@@ -36,13 +38,18 @@ export const useEditor = create<State>((set, get) => ({
   past: [],
   future: [],
   status: "Ready",
+  ratio: "16:9",
   set: (s) => set(s),
-  commit: (clips, summary) => {
+  commit: (clips, summary, ratio) => {
     validateClips(clips);
     const s = get();
     set({
       clips,
-      past: [...s.past.slice(-49), { clips: s.clips, summary: s.status }],
+      ratio: ratio ?? s.ratio,
+      past: [
+        ...s.past.slice(-49),
+        { clips: s.clips, summary: s.status, ratio: s.ratio },
+      ],
       future: [],
       revision: s.revision + 1,
       status: summary,
@@ -60,10 +67,7 @@ export const useEditor = create<State>((set, get) => ({
         "Timeline changed while AI was working. Send the request again.",
       );
     if (!ops.length) throw new Error("No edits were requested.");
-    s.commit(
-      applyOperations(s.clips, ops),
-      ops.map((o) => o.type.replaceAll("_", " ")).join(" · "),
-    );
+    s.commit(applyOperations(s.clips, ops), describe(ops));
   },
   undo: () => {
     const s = get(),
@@ -71,8 +75,12 @@ export const useEditor = create<State>((set, get) => ({
     if (!prev) return;
     set({
       clips: prev.clips,
+      ratio: prev.ratio,
       past: s.past.slice(0, -1),
-      future: [...s.future, { clips: s.clips, summary: s.status }],
+      future: [
+        ...s.future,
+        { clips: s.clips, summary: s.status, ratio: s.ratio },
+      ],
       revision: s.revision + 1,
       playing: false,
       time: 0,
@@ -86,8 +94,9 @@ export const useEditor = create<State>((set, get) => ({
     if (!next) return;
     set({
       clips: next.clips,
+      ratio: next.ratio,
       future: s.future.slice(0, -1),
-      past: [...s.past, { clips: s.clips, summary: s.status }],
+      past: [...s.past, { clips: s.clips, summary: s.status, ratio: s.ratio }],
       revision: s.revision + 1,
       playing: false,
       time: 0,

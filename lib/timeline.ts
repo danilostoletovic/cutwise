@@ -6,6 +6,30 @@ export const clipSchema = z
     sourceStart: z.number().finite().min(0),
     sourceEnd: z.number().finite().positive().max(86400),
     volume: z.number().min(0).max(1),
+    transition: z
+      .object({
+        kind: z.enum(["cut", "fade"]),
+        duration: z.number().min(0).max(2),
+      })
+      .optional(),
+    zoom: z
+      .object({
+        sourceTime: z.number().min(0),
+        value: z.number().min(1).max(2),
+      })
+      .optional(),
+    title: z.string().max(80).optional(),
+    sounds: z
+      .array(
+        z.object({
+          id: z.string(),
+          sourceTime: z.number().min(0),
+          kind: z.enum(["pop", "impact", "chime"]),
+          volume: z.number().min(0).max(1),
+        }),
+      )
+      .max(20)
+      .optional(),
   })
   .strict();
 export type Clip = z.infer<typeof clipSchema>;
@@ -18,8 +42,42 @@ export type Asset = {
   file: File;
   thumbnail?: string;
   providerMetadata?: Record<string, unknown>;
+  width?: number;
+  height?: number;
 };
 export const operationSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("build_montage"),
+    targetSeconds: z.number().min(0.5).max(600),
+    clipSeconds: z.number().min(0.5).max(30),
+    zoom: z.number().min(1).max(2),
+    transition: z.enum(["cut", "fade"]),
+    transitionDuration: z.number().min(0).max(2),
+    soundIntensity: z.number().min(0).max(1),
+  }),
+  z.object({
+    type: z.literal("zoom_at"),
+    time: z.number().min(0),
+    value: z.number().min(1).max(2),
+  }),
+  z.object({
+    type: z.literal("sound_at"),
+    time: z.number().min(0),
+    kind: z.enum(["pop", "impact", "chime"]),
+    volume: z.number().min(0).max(1),
+  }),
+  z.object({ type: z.literal("remove_sound_at"), time: z.number().min(0) }),
+  z.object({
+    type: z.literal("set_transition"),
+    clipId: z.string(),
+    kind: z.enum(["cut", "fade"]),
+    duration: z.number().min(0).max(2),
+  }),
+  z.object({
+    type: z.literal("set_title"),
+    clipId: z.string(),
+    text: z.string().max(80),
+  }),
   z.object({
     type: z.literal("trim_start"),
     clipId: z.string(),
@@ -53,7 +111,7 @@ export const operationSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export const resultSchema = z.object({
-  operations: z.array(operationSchema).max(30),
+  operations: z.array(operationSchema).max(300),
   summary: z.string(),
   clarification: z.string().nullable(),
 });
@@ -96,7 +154,95 @@ export function applyOperations(
   let clips = input.map((c) => ({ ...c }));
   for (const raw of operations) {
     const op = operationSchema.parse(raw);
-    if (op.type === "remove_range") {
+    if (op.type === "build_montage") {
+      const input = clips,
+        cursors = input.map((c) => c.sourceStart),
+        result: Clip[] = [];
+      let remaining = Math.min(op.targetSeconds, duration(input));
+      while (remaining >= 0.05 && result.length < 100) {
+        let added = false;
+        for (
+          let i = 0;
+          i < input.length && remaining >= 0.05 && result.length < 100;
+          i++
+        ) {
+          const c = input[i],
+            length = Math.min(
+              op.clipSeconds,
+              c.sourceEnd - cursors[i],
+              remaining,
+            );
+          if (length < 0.05) continue;
+          const start = cursors[i];
+          result.push({
+            id: id(),
+            assetId: c.assetId,
+            sourceStart: start,
+            sourceEnd: start + length,
+            volume: c.volume,
+            transition: {
+              kind: op.transition,
+              duration: op.transitionDuration,
+            },
+            zoom: { sourceTime: start, value: op.zoom },
+            sounds: op.soundIntensity
+              ? [
+                  {
+                    id: id(),
+                    sourceTime: start,
+                    kind: i % 2 ? "pop" : "impact",
+                    volume: op.soundIntensity,
+                  },
+                ]
+              : [],
+          });
+          cursors[i] += length;
+          remaining -= length;
+          added = true;
+        }
+        if (!added) break;
+      }
+      clips = result;
+    } else if (
+      op.type === "zoom_at" ||
+      op.type === "sound_at" ||
+      op.type === "remove_sound_at"
+    ) {
+      if (op.time >= duration(clips))
+        throw new Error("Timestamp is outside the sequence.");
+      const at = locate(clips, op.time)!;
+      if (op.type === "zoom_at")
+        at.clip.zoom = { sourceTime: at.sourceTime, value: op.value };
+      else if (op.type === "sound_at")
+        at.clip.sounds = [
+          ...(at.clip.sounds ?? []),
+          {
+            id: id(),
+            sourceTime: at.sourceTime,
+            kind: op.kind,
+            volume: op.volume,
+          },
+        ];
+      else {
+        const sounds = at.clip.sounds ?? [];
+        const nearest = sounds
+          .filter(
+            (x) =>
+              x.sourceTime >= at.clip.sourceStart &&
+              x.sourceTime < at.clip.sourceEnd,
+          )
+          .sort(
+            (a, b) =>
+              Math.abs(a.sourceTime - at.sourceTime) -
+              Math.abs(b.sourceTime - at.sourceTime),
+          )[0];
+        if (!nearest || Math.abs(nearest.sourceTime - at.sourceTime) > 0.5)
+          throw new Error(
+            "No sound effect within 0.5 seconds of that timestamp.",
+          );
+        at.clip.sounds = sounds.filter((x) => x.id !== nearest.id);
+      }
+    } else if (op.type === "remove_range") {
       if (op.end <= op.start || op.end > duration(clips) + 0.001)
         throw new Error("Range is outside the sequence.");
       let offset = 0;
@@ -122,6 +268,12 @@ export function applyOperations(
       if (index < 0) throw new Error("The requested clip no longer exists.");
       const c = clips[index];
       switch (op.type) {
+        case "set_transition":
+          c.transition = { kind: op.kind, duration: op.duration };
+          break;
+        case "set_title":
+          c.title = op.text;
+          break;
         case "trim_start":
           c.sourceStart += op.seconds;
           break;
@@ -159,6 +311,18 @@ export function describe(ops: Operation[]) {
   return ops
     .map((op) => {
       switch (op.type) {
+        case "build_montage":
+          return `Built a ${op.targetSeconds}s montage (up to available footage), ${op.clipSeconds}s cuts, ${op.transition} transitions`;
+        case "zoom_at":
+          return `Zoom ${op.value}× at ${op.time}s`;
+        case "sound_at":
+          return `Added ${op.kind} at ${op.time}s`;
+        case "remove_sound_at":
+          return `Removed sound at ${op.time}s`;
+        case "set_transition":
+          return `${op.kind === "fade" ? `Fade ${op.duration}s` : "Hard cut"} on clip`;
+        case "set_title":
+          return op.text ? `Title: ${op.text}` : "Removed title";
         case "trim_start":
           return `Removed ${op.seconds}s from clip start`;
         case "trim_end":

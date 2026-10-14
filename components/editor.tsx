@@ -35,8 +35,14 @@ import { ingest } from "@/lib/media";
 import { loadProject, saveProject } from "@/lib/persistence";
 import Preview, { stamp } from "./preview";
 import VideoAI from "./video-ai";
+import StylePanel from "./style-panel";
+import { EditingStyle, firstCut, presets } from "@/lib/styles";
+import { activeSounds, soundLibrary, soundWav } from "@/lib/effects";
 type Message = { role: "user" | "assistant" | "error"; text: string };
 const examples = [
+  "Create a fast-paced 30-second montage using my selected style",
+  "Zoom in at 5 seconds",
+  "Remove the sound effect at 2 seconds",
   "Remove the first 3 seconds",
   "Split at 10 seconds",
   "Mute the selected clip",
@@ -55,12 +61,23 @@ export default function Editor() {
     [code, setCode] = useState(""),
     [save, setSave] = useState("Loading local project…"),
     [ready, setReady] = useState(false),
+    [canSave, setCanSave] = useState(true),
     [exporting, setExporting] = useState(false),
     [exportProgress, setExportProgress] = useState(0),
     [exportLabel, setExportLabel] = useState(""),
     [download, setDownload] = useState(""),
     abort = useRef<AbortController | null>(null),
     [zoom, setZoom] = useState(50);
+  const [tool, setTool] = useState("Media"),
+    [style, setStyle] = useState<EditingStyle>(presets[0]),
+    [targetLength, setTargetLength] = useState(30),
+    [search, setSearch] = useState(""),
+    [collapsed, setCollapsed] = useState(false),
+    [feedback, setFeedback] = useState<{
+      text: string;
+      operations: Operation[];
+    } | null>(null);
+  const audition = useRef<HTMLAudioElement | null>(null);
   const total = duration(s.clips),
     selected = s.clips.find((c) => c.id === s.selected),
     index = s.clips.findIndex((c) => c.id === s.selected),
@@ -82,6 +99,10 @@ export default function Editor() {
       .catch(() => {
         if (!cancelled) {
           setSave("Could not restore local project");
+          setCanSave(false);
+          setError(
+            "Local project could not be restored. Automatic saving is paused to protect the stored project. Keep this tab open and retry by reloading.",
+          );
           setReady(true);
         }
       });
@@ -90,20 +111,34 @@ export default function Editor() {
     };
   }, []);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !canSave) return;
     setSave("Saving locally…");
     const timer = setTimeout(() => {
-      saveProject(s.name, s.clips, s.assets)
+      saveProject(s.name, s.clips, s.assets, s.ratio)
         .then(() => setSave("Saved on this device"))
         .catch(() =>
           setSave("Storage full or unavailable — keep this tab open"),
         );
     }, 500);
     return () => clearTimeout(timer);
-  }, [s.name, s.clips, s.assets, ready]);
+  }, [s.name, s.clips, s.assets, s.ratio, ready, canSave]);
+  useEffect(
+    () => () => {
+      if (audition.current) {
+        audition.current.pause();
+        URL.revokeObjectURL(audition.current.src);
+      }
+    },
+    [],
+  );
   useEffect(() => {
     function key(e: KeyboardEvent) {
-      if ((e.target as HTMLElement).matches("input,textarea")) return;
+      if (
+        (e.target as HTMLElement).matches(
+          "input,textarea,select,button,a,[contenteditable=true]",
+        )
+      )
+        return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) useEditor.getState().redo();
@@ -142,6 +177,9 @@ export default function Editor() {
     setError("");
     const errors: string[] = [];
     for (const file of Array.from(files)) {
+      s.set({
+        status: `Reading ${file.name} (${Array.from(files).indexOf(file) + 1}/${files.length})`,
+      });
       try {
         const asset = await ingest(file);
         const state = useEditor.getState();
@@ -267,6 +305,14 @@ export default function Editor() {
           selectedClipId: s.selected,
           playheadTime: s.time,
           timelineDuration: total,
+          style,
+          media: s.assets.map((a) => ({
+            id: a.id,
+            name: a.name,
+            duration: a.duration,
+            width: a.width,
+            height: a.height,
+          })),
         }),
       });
       const body = await response.json();
@@ -279,6 +325,7 @@ export default function Editor() {
         ]);
       } else {
         useEditor.getState().edit(result.operations, revision);
+        setFeedback({ text, operations: result.operations });
         setMessages((m) => [
           ...m,
           { role: "assistant", text: describe(result.operations) },
@@ -316,6 +363,7 @@ export default function Editor() {
           setExportLabel(label);
         },
         abort.current.signal,
+        s.ratio,
       );
       setDownload(URL.createObjectURL(blob));
     } catch (e) {
@@ -417,7 +465,7 @@ export default function Editor() {
       {download && (
         <div className="export-progress success">
           <Check size={16} />
-          <span>Playable MP4 ready · 1280 × 720</span>
+          <span>Validated MP4 ready · {s.ratio}</span>
           <a
             className="primary"
             href={download}
@@ -445,7 +493,7 @@ export default function Editor() {
           if (e.target.files) void upload(e.target.files);
         }}
       />
-      <div className="workspace">
+      <div className={`workspace ${collapsed ? "assistant-collapsed" : ""}`}>
         <aside className="media panel">
           <div className="panel-heading">
             <span>
@@ -453,70 +501,272 @@ export default function Editor() {
             </span>
             <span className="quiet">{s.assets.length}</span>
           </div>
-          <button
-            className="upload-zone"
-            disabled={!ready || uploading}
-            onClick={() => fileInput.current?.click()}
-          >
-            {uploading ? (
-              <Loader2 size={24} className="spin" />
-            ) : (
-              <Upload size={24} />
-            )}
-            <strong>
-              {uploading ? "Reading your footage…" : "Drop your footage here"}
-            </strong>
-            <span>or click to browse files</span>
-            <small>MP4, WebM · up to 500 MB</small>
-          </button>
-          <VideoAI ready={ready} />
-          <div className="media-list">
-            {s.assets.length === 0 ? (
-              <div className="library-empty">
-                <Film size={20} />
-                <p>Room for your raw material.</p>
-                <span>Import a video to get started.</span>
-              </div>
-            ) : (
-              s.assets.map((a) => (
-                <div className="asset" key={a.id}>
-                  {a.thumbnail ? (
-                    <img src={a.thumbnail} alt="" />
-                  ) : (
-                    <Film size={20} />
-                  )}
-                  <div>
-                    <strong title={a.name}>{a.name}</strong>
-                    <span>
-                      {stamp(a.duration)} ·{" "}
-                      {(a.file.size / 1024 / 1024).toFixed(1)} MB
-                    </span>
-                  </div>
-                  <button
-                    aria-label={`Add ${a.name} to timeline`}
-                    title="Add to timeline"
-                    onClick={() =>
-                      s.commit(
-                        [
-                          ...s.clips,
+          <nav className="tool-tabs" aria-label="Editing tools">
+            {["Media", "Styles", "Sounds", "Transitions", "Titles"].map((t) => (
+              <button
+                key={t}
+                className={tool === t ? "active" : ""}
+                aria-pressed={tool === t}
+                onClick={() => {
+                  setTool(t);
+                  setSearch("");
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </nav>
+          {tool === "Styles" ? (
+            <StylePanel
+              style={style}
+              onChange={setStyle}
+              target={targetLength}
+              setTarget={setTargetLength}
+              disabled={!s.clips.length || !ready}
+              feedback={feedback}
+              onAssemble={() => {
+                try {
+                  s.commit(
+                    firstCut(s.clips, style, targetLength),
+                    `Assembled ${style.name} · metadata-based pacing`,
+                    style.ratio,
+                  );
+                  setError("");
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+            />
+          ) : tool === "Sounds" ? (
+            <div className="tool-content">
+              <h3>Sound punctuation</h3>
+              <p className="quiet">
+                Original synthesized sounds. Place at the playhead; no downloads
+                or licensing required.
+              </p>
+              <input
+                aria-label="Search sounds"
+                placeholder="Search sounds…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {soundLibrary
+                .filter((x) =>
+                  (x.name + " " + x.description)
+                    .toLowerCase()
+                    .includes(search.toLowerCase()),
+                )
+                .map((x) => (
+                  <div className="sound-card" key={x.kind}>
+                    <strong>{x.name}</strong>
+                    <p>{x.description}</p>
+                    <button
+                      onClick={() => {
+                        if (audition.current) {
+                          audition.current.pause();
+                          URL.revokeObjectURL(audition.current.src);
+                        }
+                        const url = URL.createObjectURL(
+                          new Blob([soundWav(x.kind).buffer as ArrayBuffer], {
+                            type: "audio/wav",
+                          }),
+                        );
+                        audition.current = new Audio(url);
+                        void audition.current
+                          .play()
+                          .catch(() =>
+                            setError("Sound audition could not play."),
+                          );
+                      }}
+                    >
+                      Listen
+                    </button>
+                    <button
+                      disabled={!total || s.time >= total}
+                      onClick={() =>
+                        edit([
                           {
-                            id: crypto.randomUUID(),
-                            assetId: a.id,
-                            sourceStart: 0,
-                            sourceEnd: a.duration,
-                            volume: 1,
+                            type: "sound_at",
+                            time: s.time,
+                            kind: x.kind,
+                            volume: style.soundIntensity || 0.5,
                           },
-                        ],
-                        `Added ${a.name}`,
-                      )
-                    }
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
+                        ])
+                      }
+                    >
+                      Add at {stamp(s.time)}
+                    </button>
+                  </div>
+                ))}
+            </div>
+          ) : tool === "Transitions" ? (
+            <div className="tool-content">
+              <h3>Between the moments</h3>
+              <p className="quiet">
+                Apply to the selected clip. Fades go through black and preserve
+                sequence timing.
+              </p>
+              {["cut", "fade"].map((kind) => (
+                <button
+                  className="effect-card"
+                  key={kind}
+                  disabled={!selected}
+                  onClick={() =>
+                    selected &&
+                    edit([
+                      {
+                        type: "set_transition",
+                        clipId: selected.id,
+                        kind: kind as "cut" | "fade",
+                        duration: kind === "fade" ? 0.3 : 0,
+                      },
+                    ])
+                  }
+                >
+                  <strong>
+                    {kind === "cut" ? "Hard cut" : "Fade through black"}
+                  </strong>
+                  <span>
+                    {kind === "cut"
+                      ? "Immediate, clean handoff"
+                      : "A softer entrance and exit · 0.3s"}
+                  </span>
+                </button>
+              ))}
+              <small>
+                Crossfade and slide are not supported by this renderer yet.
+              </small>
+            </div>
+          ) : tool === "Titles" ? (
+            <div className="tool-content">
+              <h3>A little emphasis</h3>
+              <p className="quiet">
+                Deterministic lower third and zoom, rendered into your MP4.
+              </p>
+              <label>
+                Selected clip title
+                <input
+                  aria-label="Clip title"
+                  key={`${selected?.id}-${selected?.title}`}
+                  maxLength={80}
+                  disabled={!selected}
+                  defaultValue={selected?.title ?? ""}
+                  onBlur={(e) =>
+                    selected &&
+                    edit([
+                      {
+                        type: "set_title",
+                        clipId: selected.id,
+                        text: e.target.value,
+                      },
+                    ])
+                  }
+                />
+              </label>
+              <button
+                className="effect-card"
+                disabled={!total || s.time >= total}
+                onClick={() =>
+                  edit([{ type: "zoom_at", time: s.time, value: 1.2 }])
+                }
+              >
+                Zoom 1.2× from playhead
+              </button>
+              <button
+                disabled={!selected}
+                onClick={() =>
+                  selected &&
+                  edit([{ type: "set_title", clipId: selected.id, text: "" }])
+                }
+              >
+                Remove title
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                className="upload-zone"
+                disabled={!ready || uploading}
+                onClick={() => fileInput.current?.click()}
+              >
+                {uploading ? (
+                  <Loader2 size={24} className="spin" />
+                ) : (
+                  <Upload size={24} />
+                )}
+                <strong>
+                  {uploading
+                    ? "Reading your footage…"
+                    : "Drop your footage here"}
+                </strong>
+                <span>or click to browse files</span>
+                <small>MP4, WebM · up to 500 MB</small>
+              </button>
+              <VideoAI ready={ready} />
+              <input
+                className="media-search"
+                aria-label="Search media"
+                placeholder="Search footage…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <div className="media-list">
+                {s.assets.length === 0 ? (
+                  <div className="library-empty">
+                    <Film size={20} />
+                    <p>Room for your raw material.</p>
+                    <span>Import a video to get started.</span>
+                  </div>
+                ) : (
+                  s.assets
+                    .filter((a) =>
+                      a.name.toLowerCase().includes(search.toLowerCase()),
+                    )
+                    .map((a) => (
+                      <div className="asset" key={a.id}>
+                        {a.thumbnail ? (
+                          <img src={a.thumbnail} alt="" />
+                        ) : (
+                          <Film size={20} />
+                        )}
+                        <div>
+                          <strong title={a.name}>{a.name}</strong>
+                          <span>
+                            {stamp(a.duration)} ·{" "}
+                            {(a.file.size / 1024 / 1024).toFixed(1)} MB
+                          </span>
+                          <small>
+                            {a.width ? `${a.width} × ${a.height} · ` : ""}
+                            Metadata extracted
+                          </small>
+                        </div>
+                        <button
+                          aria-label={`Add ${a.name} to timeline`}
+                          title="Add to timeline"
+                          onClick={() =>
+                            s.commit(
+                              [
+                                ...s.clips,
+                                {
+                                  id: crypto.randomUUID(),
+                                  assetId: a.id,
+                                  sourceStart: 0,
+                                  sourceEnd: a.duration,
+                                  volume: 1,
+                                },
+                              ],
+                              `Added ${a.name}`,
+                            )
+                          }
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    ))
+                )}
+              </div>
+            </>
+          )}
           <div className="media-note">
             <span className="dot" />
             Local-first editing
@@ -533,23 +783,29 @@ export default function Editor() {
             <span>
               <Sparkles size={15} /> AI assistant
             </span>
-            <span className="alpha">EDITOR</span>
+            <button
+              aria-label={collapsed ? "Expand assistant" : "Collapse assistant"}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <ChevronRight size={15} />
+            </button>
           </div>
           <div className="chat">
             <div className="assistant-intro">
               <span className="assistant-icon">
                 <Sparkles size={22} />
               </span>
-              <h2>
-                Make the cut.
-                <br />
-                In your own words.
-              </h2>
+              <h2>Your creative copilot.</h2>
               <p>
-                Tell me what to trim, split, move, or mute. I’ll make the
-                changes on your timeline.
+                Build a first edit or refine a moment. Your instructions become
+                validated timeline changes.
               </p>
-              <small>Every edit is yours to undo.</small>
+              <small>Metadata only · no visual or speech analysis</small>
+              <div className="active-style">
+                <span>EDITING STYLE</span>
+                <strong>{style.name}</strong>
+                <button onClick={() => setTool("Styles")}>Configure</button>
+              </div>
             </div>
             {messages.length === 0 ? (
               <div className="suggestions">
@@ -582,6 +838,16 @@ export default function Editor() {
               </div>
             )}
           </div>
+          <details className="history">
+            <summary>Edit history · {s.past.length}</summary>
+            <p>{s.status}</p>
+            {s.past
+              .slice(-8)
+              .reverse()
+              .map((h, i) => (
+                <p key={i}>{h.summary}</p>
+              ))}
+          </details>
           <div className="composer">
             <textarea
               aria-label="Editing command"
@@ -779,6 +1045,14 @@ export default function Editor() {
                           <span>{a?.name ?? "Missing media"}</span>
                           <small>
                             {stamp(c.sourceEnd - c.sourceStart)}{" "}
+                            {c.transition?.kind === "fade" && (
+                              <span className="transition-marker">
+                                FADE {c.transition.duration}s
+                              </span>
+                            )}
+                            {c.zoom && c.zoom.value > 1 && (
+                              <span>{c.zoom.value}×</span>
+                            )}
                             {c.volume === 0 ? (
                               <VolumeX size={12} />
                             ) : (
@@ -795,6 +1069,35 @@ export default function Editor() {
                     );
                   })
                 )}
+              </div>
+              <div className="audio-track" aria-label="Sound effects track">
+                <span className="audio-track-label">SFX</span>
+                {s.clips.flatMap((c, i) => {
+                  const offset = s.clips
+                    .slice(0, i)
+                    .reduce((n, x) => n + x.sourceEnd - x.sourceStart, 0);
+                  return activeSounds(c).map((cue) => (
+                    <button
+                      key={`${c.id}:${cue.id}`}
+                      aria-label={`Remove ${cue.kind} at ${(offset + cue.sourceTime - c.sourceStart).toFixed(2)} seconds`}
+                      style={{
+                        left: (offset + cue.sourceTime - c.sourceStart) * zoom,
+                        width: Math.max(24, zoom * 0.3),
+                      }}
+                      onClick={() =>
+                        edit([
+                          {
+                            type: "remove_sound_at",
+                            time: offset + cue.sourceTime - c.sourceStart,
+                          },
+                        ])
+                      }
+                      title="Click to remove sound effect"
+                    >
+                      {cue.kind}
+                    </button>
+                  ));
+                })}
               </div>
               <div className="playhead" style={{ left: s.time * zoom }}>
                 <span />
@@ -904,6 +1207,105 @@ export default function Editor() {
             )}
             <span className="revision">REV {s.revision}</span>
           </div>
+          {selected && (
+            <div className="effect-properties">
+              <label>
+                Transition
+                <select
+                  aria-label="Clip transition"
+                  value={selected.transition?.kind ?? "cut"}
+                  onChange={(e) =>
+                    edit([
+                      {
+                        type: "set_transition",
+                        clipId: selected.id,
+                        kind: e.target.value as "cut" | "fade",
+                        duration: selected.transition?.duration || 0.3,
+                      },
+                    ])
+                  }
+                >
+                  <option value="cut">Hard cut</option>
+                  <option value="fade">Fade</option>
+                </select>
+              </label>
+              {selected.transition?.kind === "fade" && (
+                <label>
+                  Seconds
+                  <input
+                    aria-label="Transition duration"
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={selected.transition.duration}
+                    onChange={(e) =>
+                      edit([
+                        {
+                          type: "set_transition",
+                          clipId: selected.id,
+                          kind: "fade",
+                          duration: Number(e.target.value),
+                        },
+                      ])
+                    }
+                  />
+                </label>
+              )}
+              <label>
+                Zoom
+                <input
+                  aria-label="Clip zoom"
+                  type="number"
+                  min={1}
+                  max={2}
+                  step={0.05}
+                  value={selected.zoom?.value ?? 1}
+                  onChange={(e) =>
+                    edit([
+                      {
+                        type: "zoom_at",
+                        time: s.clips
+                          .slice(0, index)
+                          .reduce((n, c) => n + c.sourceEnd - c.sourceStart, 0),
+                        value: Number(e.target.value),
+                      },
+                    ])
+                  }
+                />
+              </label>
+              {activeSounds(selected).map((cue) => (
+                <label key={cue.id}>
+                  {cue.kind} volume
+                  <input
+                    aria-label={`${cue.kind} volume`}
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={cue.volume}
+                    onChange={(e) =>
+                      s.commit(
+                        s.clips.map((c) =>
+                          c.id === selected.id
+                            ? {
+                                ...c,
+                                sounds: c.sounds?.map((x) =>
+                                  x.id === cue.id
+                                    ? { ...x, volume: Number(e.target.value) }
+                                    : x,
+                                ),
+                              }
+                            : c,
+                        ),
+                        "Adjusted sound effect volume",
+                      )
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          )}
         </section>
       </div>
       <footer>

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pause, Play, SkipBack, SkipForward, Film } from "lucide-react";
 import { useEditor } from "@/lib/store";
 import { duration, locate } from "@/lib/timeline";
+import { activeSounds, soundSamples, visualState } from "@/lib/effects";
 export function stamp(time: number) {
   return `${Math.floor(time / 60)
     .toString()
@@ -16,9 +17,66 @@ export default function Preview() {
     lastClip = useRef(""),
     syncing = useRef(false),
     [error, setError] = useState("");
+  const audio = useRef<AudioContext | null>(null),
+    sources = useRef(new Map<string, AudioBufferSourceNode>());
   const total = duration(s.clips),
     current = locate(s.clips, s.time),
     asset = s.assets.find((a) => a.id === current?.clip.assetId);
+  useEffect(() => {
+    if (!s.playing) {
+      sources.current.forEach((x) => {
+        try {
+          x.stop();
+        } catch {}
+      });
+      sources.current.clear();
+      return;
+    }
+    if (!audio.current) audio.current = new AudioContext();
+    const context = audio.current;
+    void context.resume().catch(() => {});
+    if (!current) return;
+    const wanted = new Set<string>();
+    for (const cue of activeSounds(current.clip)) {
+      const key = `${current.clip.id}:${cue.id}`,
+        samples = soundSamples(cue.kind),
+        elapsed = current.sourceTime - cue.sourceTime;
+      if (elapsed < 0 || elapsed >= samples.length / 48000) continue;
+      wanted.add(key);
+      if (sources.current.has(key)) continue;
+      const buffer = context.createBuffer(1, samples.length, 48000);
+      buffer.copyToChannel(samples, 0);
+      const source = context.createBufferSource(),
+        gain = context.createGain();
+      source.buffer = buffer;
+      gain.gain.value = cue.volume;
+      source.connect(gain).connect(context.destination);
+      source.start(0, elapsed);
+      sources.current.set(key, source);
+    }
+    sources.current.forEach((source, key) => {
+      if (!wanted.has(key)) {
+        try {
+          source.stop();
+        } catch {}
+        sources.current.delete(key);
+      }
+    });
+  }, [s.time, s.playing, s.revision, current?.clip.id]);
+  useEffect(
+    () => () => {
+      sources.current.forEach((x) => {
+        try {
+          x.stop();
+        } catch {}
+      });
+      void audio.current?.close();
+    },
+    [],
+  );
+  const visual = current
+    ? visualState(current.clip, current.sourceTime)
+    : { opacity: 1, scale: 1 };
   useEffect(() => {
     const video = v.current;
     if (!video || !current || !asset) {
@@ -123,21 +181,52 @@ export default function Preview() {
     <section className="preview panel">
       <div className="panel-heading">
         <span>Preview</span>
-        <span className="quiet">16:9 · Sequence</span>
+        <label className="quiet">
+          Canvas{" "}
+          <select
+            aria-label="Aspect ratio"
+            value={s.ratio}
+            onChange={(e) =>
+              s.commit(s.clips, "Changed canvas ratio", e.target.value)
+            }
+          >
+            {["16:9", "9:16", "1:1"].map((r) => (
+              <option key={r}>{r}</option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className="viewer">
         {asset ? (
-          <video
-            ref={v}
-            playsInline
-            aria-label="Sequence preview"
-            onError={() => {
-              setError(
-                "This source cannot be played. Reimport a supported MP4 or WebM.",
-              );
-              s.set({ playing: false });
-            }}
-          />
+          <div
+            className="preview-frame"
+            style={
+              {
+                aspectRatio: s.ratio.replace(":", "/"),
+                "--aspect":
+                  s.ratio === "9:16" ? 9 / 16 : s.ratio === "1:1" ? 1 : 16 / 9,
+              } as React.CSSProperties
+            }
+          >
+            <video
+              ref={v}
+              playsInline
+              aria-label="Sequence preview"
+              style={{
+                opacity: visual.opacity,
+                transform: `scale(${visual.scale})`,
+              }}
+              onError={() => {
+                setError(
+                  "This source cannot be played. Reimport a supported MP4 or WebM.",
+                );
+                s.set({ playing: false });
+              }}
+            />
+            {current?.clip.title && (
+              <div className="preview-title">{current.clip.title}</div>
+            )}
+          </div>
         ) : (
           <div className="empty-preview">
             <div className="empty-icon">
