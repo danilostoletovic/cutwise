@@ -1006,3 +1006,60 @@ footer > span:first-child {
     display: none;
   }
 }
+.video-ai {
+  margin: 0 16px 12px;
+  border: 1px solid var(--border, #303038);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.video-ai summary {
+  cursor: pointer;
+  padding: 12px;
+}
+.video-ai summary span {
+  margin-left: 8px;
+}
+.video-ai-form {
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 10px;
+  max-height: 460px;
+  overflow-y: auto;
+}
+.video-ai-form label {
+  display: grid;
+  gap: 5px;
+}
+.video-ai-form input,
+.video-ai-form textarea,
+.video-ai-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  background: #17171c;
+  color: inherit;
+  border: 1px solid #34343c;
+  border-radius: 5px;
+}
+.video-ai-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+.video-ai-form p {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.video-ai-form button {
+  border: 1px solid #34343c;
+  border-radius: 5px;
+  padding: 8px;
+}
+.video-ai-form video {
+  width: 100%;
+  margin: 8px 0;
+}
+.video-ai-form :focus-visible {
+  outline: 2px solid #b9a6ff;
+  outline-offset: 2px;
+}

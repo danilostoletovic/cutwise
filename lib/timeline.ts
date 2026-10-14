@@ -17,6 +17,7 @@ export type Asset = {
   objectUrl: string;
   file: File;
   thumbnail?: string;
+  providerMetadata?: Record<string, unknown>;
 };
 export const operationSchema = z.discriminatedUnion("type", [
   z.object({

@@ -14,3 +14,7 @@ Secondary pattern: Jitter editor, Refero screen 58809d3d-b3fe-4d45-a75e-2ad89864
 | Monospace time labels                      | Linear style           | Technical notation     | Read exact edit boundaries                  |
 
 Reject decorative gradients, fake waveforms, unfinished navigation, and pretend demo footage.
+
+## Phase 9 provider controls
+
+Preserve the existing Linear/Jitter/Riverside reference lock. Add a compact, collapsed disclosure in the media panel: provider output is source footage and belongs beside upload controls. Reuse graphite surfaces, bordered controls and functional selection accents. The user brief requires explicit provider selection, unavailable states, cost visibility and generation feedback. Refero's bundled `craft-details.md` informs visible labels, URL input semantics and keyboard focus. Keep the provider setup message visible before any paid action; show preview and local import only for actual completed output. Validate desktop and 390 px mobile screenshots against the existing editor layout.

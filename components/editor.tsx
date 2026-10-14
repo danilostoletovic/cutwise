@@ -34,6 +34,7 @@ import {
 import { ingest } from "@/lib/media";
 import { loadProject, saveProject } from "@/lib/persistence";
 import Preview, { stamp } from "./preview";
+import VideoAI from "./video-ai";
 type Message = { role: "user" | "assistant" | "error"; text: string };
 const examples = [
   "Remove the first 3 seconds",
@@ -468,6 +469,7 @@ export default function Editor() {
             <span>or click to browse files</span>
             <small>MP4, WebM · up to 500 MB</small>
           </button>
+          <VideoAI ready={ready} />
           <div className="media-list">
             {s.assets.length === 0 ? (
               <div className="library-empty">

@@ -99,3 +99,7 @@ Set `BASE_URL` to test a production deployment. The private demo code must match
 ## Next milestone
 
 Add durable public-demo rate limiting, a media relink/project file workflow and a worker-backed render queue with resource estimates. Then improve frame-accurate preview and automated cross-browser export coverage before adding editing features.
+
+# Optional Runway and OpusClip integrations
+
+See [provider setup and validation steps](docs/providers/SETUP.md). Providers are disabled by default. Runway supports text/image requests, status polling and local footage import once explicitly configured. Real provider validation is pending. OpusClip remains a clearly disabled adapter pending verification of its project lifecycle contract and account access.
