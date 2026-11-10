@@ -56,3 +56,11 @@ Cutwise restores one local project per browser origin. Browser codec support det
 ## Hosting
 
 Set OpenAI and provider credentials as server-only environment variables. The production editing endpoint requires both an OpenAI key and a private demo code. Its request limits are held in memory and reset when the server restarts. Keep a shared demo gated and use durable usage controls before opening it to the public.
+
+### GitHub Pages
+
+In **Settings → Pages**, set **Source** to **GitHub Actions**. The Pages workflow publishes the static editor on pushes to the `github-pages` branch and can also be started from that branch in the Actions tab. The Pages edition includes local editing, style presets, and MP4 export. AI editing and video generation require the server build.
+
+## License
+
+[MIT](LICENSE) © 2026 Danilo Stoletovic.

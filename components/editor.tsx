@@ -38,7 +38,7 @@ import StylePanel from "./style-panel";
 import { EditingStyle, firstCut, presets } from "@/lib/styles";
 import { activeSounds, soundLibrary, soundWav } from "@/lib/effects";
 type Message = { role: "user" | "assistant" | "error"; text: string };
-export default function Editor() {
+export default function Editor({ localOnly = false }: { localOnly?: boolean }) {
   const s = useEditor(),
     fileInput = useRef<HTMLInputElement>(null),
     [error, setError] = useState(""),
@@ -484,7 +484,9 @@ export default function Editor() {
           if (e.target.files) void upload(e.target.files);
         }}
       />
-      <div className={`workspace ${collapsed ? "assistant-collapsed" : ""}`}>
+      <div
+        className={`workspace ${localOnly ? "local-workspace" : collapsed ? "assistant-collapsed" : ""}`}
+      >
         <aside className="media panel">
           <div className="panel-heading">
             <span>
@@ -670,7 +672,7 @@ export default function Editor() {
                   <strong>{uploading ? "Importing…" : "Import media"}</strong>
                   <small>MP4, WebM · up to 500 MB</small>
                 </button>
-                <VideoAI ready={ready} />
+                {!localOnly && <VideoAI ready={ready} />}
                 {s.assets.length > 0 && (
                   <input
                     className="media-search"
@@ -732,100 +734,104 @@ export default function Editor() {
           </div>
         </aside>
         <Preview />
-        <aside className="assistant panel">
-          <div className="panel-heading">
-            <span>
-              <span className="assistant-mark" aria-hidden="true">
-                <Sparkles size={15} />
-              </span>
-              AI assistant
-            </span>
-            <button
-              aria-label={collapsed ? "Expand assistant" : "Collapse assistant"}
-              onClick={() => setCollapsed(!collapsed)}
-            >
-              <ChevronRight size={15} />
-            </button>
-          </div>
-          <div className="chat" role="log" aria-label="AI conversation">
-            {messages.length === 0 && !thinking && (
-              <p className="assistant-empty">
-                {s.clips.length
-                  ? "What would you like to change?"
-                  : "Add a clip to start."}
-              </p>
-            )}
-            {messages.map((m, i) => (
-              <div key={i} className={`message ${m.role}`}>
-                <span>
-                  {m.role === "user"
-                    ? "YOU"
-                    : m.role === "error"
-                      ? "REQUEST FAILED"
-                      : "CUTWISE"}
+        {!localOnly && (
+          <aside className="assistant panel">
+            <div className="panel-heading">
+              <span>
+                <span className="assistant-mark" aria-hidden="true">
+                  <Sparkles size={15} />
                 </span>
-                <p>{m.text}</p>
-              </div>
-            ))}
-            {thinking && (
-              <div className="thinking">
-                <Loader2 className="spin" size={14} />
-                Planning timeline changes…
-              </div>
-            )}
-          </div>
-          <div className="composer">
-            <textarea
-              aria-label="Editing command"
-              placeholder="Ask for an edit"
-              value={prompt}
-              maxLength={2000}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void ask();
-                }
-              }}
-            />
-            <div>
-              <span className="quiet">Enter to apply</span>
+                AI assistant
+              </span>
               <button
-                aria-label="Apply AI edit"
-                className="send"
-                disabled={!s.clips.length || !prompt.trim() || thinking}
-                onClick={() => void ask()}
+                aria-label={
+                  collapsed ? "Expand assistant" : "Collapse assistant"
+                }
+                onClick={() => setCollapsed(!collapsed)}
               >
-                {thinking ? (
-                  <Loader2 className="spin" size={16} />
-                ) : (
-                  <Send size={16} />
-                )}
+                <ChevronRight size={15} />
               </button>
             </div>
-          </div>
-          <details className="history">
-            <summary>Edit history · {s.past.length}</summary>
-            <p>{s.status}</p>
-            {s.past
-              .slice(-8)
-              .reverse()
-              .map((h, i) => (
-                <p key={i}>{h.summary}</p>
+            <div className="chat" role="log" aria-label="AI conversation">
+              {messages.length === 0 && !thinking && (
+                <p className="assistant-empty">
+                  {s.clips.length
+                    ? "What would you like to change?"
+                    : "Add a clip to start."}
+                </p>
+              )}
+              {messages.map((m, i) => (
+                <div key={i} className={`message ${m.role}`}>
+                  <span>
+                    {m.role === "user"
+                      ? "YOU"
+                      : m.role === "error"
+                        ? "REQUEST FAILED"
+                        : "CUTWISE"}
+                  </span>
+                  <p>{m.text}</p>
+                </div>
               ))}
-          </details>
-          <details className="access">
-            <summary>Private demo access</summary>
-            <input
-              type="password"
-              aria-label="Demo access code"
-              placeholder="Demo access code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-            />
-            <small>Required on the public demo.</small>
-          </details>
-        </aside>
+              {thinking && (
+                <div className="thinking">
+                  <Loader2 className="spin" size={14} />
+                  Planning timeline changes…
+                </div>
+              )}
+            </div>
+            <div className="composer">
+              <textarea
+                aria-label="Editing command"
+                placeholder="Ask for an edit"
+                value={prompt}
+                maxLength={2000}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void ask();
+                  }
+                }}
+              />
+              <div>
+                <span className="quiet">Enter to apply</span>
+                <button
+                  aria-label="Apply AI edit"
+                  className="send"
+                  disabled={!s.clips.length || !prompt.trim() || thinking}
+                  onClick={() => void ask()}
+                >
+                  {thinking ? (
+                    <Loader2 className="spin" size={16} />
+                  ) : (
+                    <Send size={16} />
+                  )}
+                </button>
+              </div>
+            </div>
+            <details className="history">
+              <summary>Edit history · {s.past.length}</summary>
+              <p>{s.status}</p>
+              {s.past
+                .slice(-8)
+                .reverse()
+                .map((h, i) => (
+                  <p key={i}>{h.summary}</p>
+                ))}
+            </details>
+            <details className="access">
+              <summary>Private demo access</summary>
+              <input
+                type="password"
+                aria-label="Demo access code"
+                placeholder="Demo access code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+              <small>Required on the public demo.</small>
+            </details>
+          </aside>
+        )}
         <section className="timeline panel">
           <div className="panel-heading">
             <span>

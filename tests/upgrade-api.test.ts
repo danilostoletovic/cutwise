@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { POST } from "../app/api/ai/edit/route";
+import { POST } from "../app/api/ai/edit/route.server";
 import { presets } from "../lib/styles";
 test("mocked OpenAI transport validates montage and timestamp plans and rejects malformed output", async () => {
   const oldFetch = globalThis.fetch,

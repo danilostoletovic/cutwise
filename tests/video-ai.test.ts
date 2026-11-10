@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { RunwayProvider } from "../lib/video-ai/runway";
 import { generationSchema, estimateCredits } from "../lib/video-ai/types";
 import { jobToken, readJob } from "../lib/video-ai/server";
-import { GET, POST } from "../app/api/video-ai/route";
+import { GET, POST } from "../app/api/video-ai/route.server";
 const id = "12345678-1234-4234-8234-123456789abc";
 const input = {
   provider: "runway" as const,
