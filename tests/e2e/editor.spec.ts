@@ -205,9 +205,7 @@ test("responsive empty editor and honest API failures", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Saved on this device")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(
-    page.getByText("Your next great cut starts here."),
-  ).toBeVisible();
+  await expect(page.getByText("No video yet")).toBeVisible();
   await expect(page.getByRole("button", { name: "Export MP4" })).toBeDisabled();
   expect(
     await page.evaluate(

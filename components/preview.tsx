@@ -1,6 +1,14 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { Pause, Play, SkipBack, SkipForward, Film } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Pause,
+  Play,
+  SkipBack,
+  SkipForward,
+  Film,
+  Maximize,
+  Minimize,
+} from "lucide-react";
 import { useEditor } from "@/lib/store";
 import { duration, locate } from "@/lib/timeline";
 import { activeSounds, soundSamples, visualState } from "@/lib/effects";
@@ -177,8 +185,50 @@ export default function Preview() {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, []);
+  const preview = useRef<HTMLElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const toggleFullscreen = useCallback(async () => {
+    const panel = preview.current;
+    if (!panel || !document.fullscreenEnabled) return;
+    try {
+      if (document.fullscreenElement === panel) {
+        await document.exitFullscreen();
+      } else {
+        await panel.requestFullscreen();
+      }
+    } catch {
+      setError("Fullscreen is unavailable.");
+    }
+  }, []);
+
+  useEffect(() => {
+    function onFullscreenChange() {
+      setFullscreen(document.fullscreenElement === preview.current);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        event.key !== "F4" ||
+        event.repeat ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        !document.fullscreenEnabled
+      )
+        return;
+      event.preventDefault();
+      void toggleFullscreen();
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [toggleFullscreen]);
+
   return (
-    <section className="preview panel">
+    <section className="preview panel" ref={preview}>
       <div className="panel-heading">
         <span>Preview</span>
         <label className="quiet">
@@ -232,13 +282,7 @@ export default function Preview() {
             <div className="empty-icon">
               <Film size={32} />
             </div>
-            <h1>Your next great cut starts here.</h1>
-            <p>
-              Drop in your footage. Make a few cuts.
-              <br />
-              Or just tell Shorties what to change.
-            </p>
-            <span className="quiet">Your videos stay on this device.</span>
+            <h1>No video yet</h1>
           </div>
         )}
       </div>
@@ -277,7 +321,14 @@ export default function Preview() {
             <SkipForward size={15} />
           </button>
         </div>
-        <span className="quiet">Local preview</span>
+        <button
+          aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          aria-keyshortcuts="F4"
+          title={fullscreen ? "Exit fullscreen (F4)" : "Enter fullscreen (F4)"}
+          onClick={() => void toggleFullscreen()}
+        >
+          {fullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+        </button>
       </div>
       <input
         aria-label="Seek sequence"

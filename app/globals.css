@@ -1,12 +1,15 @@
 @import "tailwindcss";
 :root {
-  --canvas: #08090a;
-  --surface: #141516;
-  --raised: #1c1c1f;
-  --line: #2d2e31;
+  --canvas: #0b101d;
+  --surface: rgb(21 29 47 / 88%);
+  --raised: #202b43;
+  --line: #ffffff20;
   --text: #f7f8f8;
-  --muted: #979ca6;
-  --accent: #b5a2ff;
+  --muted: #abb6cb;
+  --accent: #b5c4ff;
+  --accent-hover: #d1daff;
+  --selected: #303f69;
+  --panel-radius: 20px;
   color-scheme: dark;
 }
 * {
@@ -14,9 +17,12 @@
 }
 body {
   margin: 0;
-  background: var(--canvas);
+  background:
+    radial-gradient(ellipse at 10% 0%, #293760, transparent 54%),
+    radial-gradient(ellipse at 95% 8%, #352955, transparent 50%),
+    var(--canvas);
   color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-size: 13px;
 }
 button,
@@ -1063,18 +1069,8 @@ footer > span:first-child {
   outline: 2px solid #b9a6ff;
   outline-offset: 2px;
 }
-/* Reference lock: matte instrument surfaces; Shorties lavender only for actions
-   and selection. Compact Runway type, Clipchamp workspace hierarchy. */
-:root {
-  --canvas: #0c0d10;
-  --surface: #17181c;
-  --raised: #212228;
-  --line: #303138;
-  --muted: #a2a4af;
-}
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* Shared editor controls and workspace layout. */
+
 button,
 a.primary {
   border-radius: 6px;
@@ -1098,7 +1094,7 @@ a.primary,
 }
 .primary:hover:not(:disabled),
 .send:hover:not(:disabled) {
-  background: #cbbaff;
+  background: var(--accent-hover);
 }
 .workspace {
   grid-template-columns: 260px minmax(280px, 1fr) 304px;
@@ -1140,7 +1136,7 @@ a.primary,
   color: var(--muted);
 }
 .tool-tabs button.active {
-  background: #332b45;
+  background: var(--selected);
   color: #e3d9ff;
 }
 .upload-zone {
@@ -1653,4 +1649,311 @@ main {
     flex: none;
     grid-template-rows: 380px 290px auto;
   }
+}
+
+/* Glass frames surround an opaque playback stage and timeline. */
+.topbar {
+  flex-shrink: 0;
+  background: rgb(15 22 39 / 82%);
+  backdrop-filter: blur(18px);
+}
+.brand {
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+.brand-icon {
+  border-radius: 10px;
+  color: #17213a;
+  box-shadow: 0 3px 12px #090e1f66;
+}
+.alpha {
+  border-radius: 999px;
+  color: var(--muted);
+}
+.workspace {
+  gap: 10px;
+  padding: 10px;
+  background: transparent;
+}
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--panel-radius);
+  background: var(--surface);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 6px 18px #05091240;
+}
+.panel-heading {
+  font-weight: 650;
+}
+button,
+input,
+textarea,
+a.primary {
+  border-radius: 10px;
+}
+button:hover:not(:disabled) {
+  background-color: #ffffff12;
+}
+button.primary,
+a.primary {
+  border-radius: 999px;
+  color: #17213a;
+}
+.viewer {
+  background: #090d17;
+}
+.transport {
+  background: transparent;
+}
+.empty-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  border-color: var(--line);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #303e69, #232947);
+  color: var(--accent);
+}
+.empty-preview h1,
+.assistant-intro h2 {
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.empty-preview h1 {
+  font-size: clamp(20px, 2.4vw, 32px);
+  margin-bottom: 8px;
+}
+.empty-preview p {
+  margin-bottom: 12px;
+}
+.assistant-icon,
+.transport-buttons .play {
+  background: var(--accent);
+  color: #17213a;
+  border-color: transparent;
+}
+.transport-buttons .play:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.upload-zone,
+.composer,
+.asset,
+.active-style,
+.style-presets button,
+.effect-card {
+  background: #ffffff08;
+  border-color: var(--line);
+  border-radius: 14px;
+}
+.upload-zone:hover:not(:disabled),
+.style-presets .active {
+  background: var(--selected);
+  border-color: var(--accent);
+}
+.tool-tabs button {
+  min-width: 0;
+  border-radius: 999px;
+}
+.tool-tabs button.active {
+  color: var(--accent-hover);
+}
+.timeline {
+  overflow: hidden;
+}
+.timeline-scroll {
+  background: #101626;
+}
+.track-label {
+  background: #182035;
+}
+.clip.selected {
+  background: var(--selected);
+  border-color: var(--accent);
+}
+.trim-handle,
+.playhead,
+.playhead span {
+  background: var(--accent);
+}
+footer {
+  flex-shrink: 0;
+}
+
+@media (max-width: 800px) {
+  .workspace {
+    gap: 8px;
+    padding: 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  .timeline .panel-heading {
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    padding-block: 4px;
+  }
+}
+
+/* Panels grow with their content. The timeline pans horizontally when zoomed. */
+main {
+  height: auto;
+  min-height: 100dvh;
+}
+.workspace {
+  grid-template-rows: minmax(350px, auto) minmax(290px, auto);
+}
+.media,
+.assistant,
+.media-list,
+.chat,
+.video-ai-form {
+  max-height: none;
+  overflow: visible;
+}
+.media-list {
+  flex: none;
+}
+.chat {
+  padding: 12px;
+}
+.active-style {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+}
+.message {
+  margin: 8px 0 0;
+}
+.composer textarea {
+  field-sizing: content;
+  min-height: 48px;
+  max-height: none;
+  resize: none;
+}
+.upload-zone {
+  flex-direction: row;
+  padding: 14px 10px;
+  flex-wrap: wrap;
+}
+.upload-zone small {
+  flex-basis: 100%;
+}
+.timeline-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.empty-preview h1 {
+  font-size: 20px;
+}
+@media (max-width: 800px) {
+  .workspace,
+  .assistant-collapsed {
+    grid-template-rows: minmax(350px, auto) minmax(290px, auto) auto;
+  }
+  .assistant {
+    min-height: 0;
+  }
+}
+
+.chat:empty {
+  display: none;
+}
+.media-tab-content {
+  display: flex;
+  flex-direction: column;
+  max-height: clamp(260px, calc(100dvh - 420px), 540px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.media-tab-content > * {
+  flex-shrink: 0;
+}
+@media (min-width: 801px) {
+  .preview {
+    position: sticky;
+    top: 10px;
+    align-self: start;
+    height: clamp(350px, calc(100dvh - 400px), 650px);
+  }
+}
+@media (min-width: 521px) and (max-width: 800px) {
+  .preview {
+    height: 380px;
+    align-self: start;
+  }
+}
+.preview:fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #090d17;
+  backdrop-filter: none;
+}
+
+.assistant .panel-heading > span {
+  gap: 10px;
+}
+.assistant-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--selected);
+  color: var(--accent-hover);
+}
+.assistant-collapsed .panel-heading button svg {
+  transform: rotate(180deg);
+}
+.assistant .chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+}
+.assistant-empty {
+  margin: auto 0;
+  padding: 12px 0;
+  text-align: center;
+  color: var(--muted);
+}
+.assistant .message {
+  margin: 0;
+  border-radius: 14px 14px 14px 4px;
+  border-color: var(--line);
+  background: #ffffff08;
+}
+.assistant .message.user {
+  align-self: flex-end;
+  max-width: 90%;
+  background: var(--selected);
+  border-radius: 14px 14px 4px 14px;
+}
+.assistant .message.error {
+  border-color: #aa6475;
+  background: #562c3d66;
+}
+.assistant .composer {
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+.assistant .composer:focus-within {
+  border-color: var(--accent);
+}
+.assistant .send {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+.assistant .history,
+.assistant .access {
+  margin: 0 12px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
 }

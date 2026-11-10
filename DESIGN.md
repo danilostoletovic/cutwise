@@ -1,4 +1,10 @@
-# Shorties reference lock
+# Cutwise design
+
+Cutwise uses a dark, blue-violet workspace. Windows 11 inspires the translucent panels and layered shell, Material informs the rounded controls and selected states, and One UI informs the larger headings and spacing. The preview uses an opaque stage, and the timeline uses opaque tracks for legible clips and timestamps.
+
+The desktop layout pairs the media library and assistant with a central preview above a full-width timeline. At phone widths the panels stack and the timeline scrolls within its own panel.
+
+## Historical Shorties reference lock
 
 Primary direction: Linear Changelog, Refero style 11d3e58a-87d7-4a9a-bbf5-720f4fd3ffc6 (https://linear.app/changelog). Preserve near-black canvas, layered graphite, thin borders, compact type, medium-weight headlines and pill controls. Use system sans and monospace timestamps to avoid runtime font requests.
 

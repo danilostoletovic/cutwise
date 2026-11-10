@@ -1,8 +1,8 @@
 import "./globals.css";
 export const metadata = {
-  title: "Shorties — AI video editor",
+  title: "Cutwise — Local-first video editor",
   description:
-    "A local-first video editing workspace. Make the cut, in your own words.",
+    "Cut, arrange, and export video in your browser with a timeline and an optional AI editing assistant.",
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
