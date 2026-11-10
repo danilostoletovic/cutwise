@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { POST } from "../app/api/ai/edit/route";
+import { POST } from "../app/api/ai/edit/route.server";
 test("production AI fails closed and enforces access, origin and input limits", async () => {
   const old = { ...process.env };
   try {

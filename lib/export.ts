@@ -28,9 +28,10 @@ export async function renderVideo(
   try {
     if (signal?.aborted) throw new Error("Export cancelled.");
     progress(2, "Loading local video renderer…");
+    const basePath = process.env.NEXT_PUBLIC_CUTWISE_BASE_PATH ?? "";
     await ffmpeg.load({
-      coreURL: "/ffmpeg/ffmpeg-core.js",
-      wasmURL: "/ffmpeg/ffmpeg-core.wasm",
+      coreURL: `${basePath}/ffmpeg/ffmpeg-core.js`,
+      wasmURL: `${basePath}/ffmpeg/ffmpeg-core.wasm`,
     });
     const written = new Set<string>();
     for (let i = 0; i < clips.length; i++) {
